@@ -7,6 +7,8 @@ from sqlalchemy.schema import DDL
 from brpr_admin import dontworry
 from class_property.descriptor import classproperty
 from sqlalchemy.orm.query import Query
+from brpr_admin.dontworry import dump
+from sqlalchemy.sql.elements import BinaryExpression
 
 
 class DBLangColumn(sa.Column):
@@ -15,10 +17,20 @@ class DBLangColumn(sa.Column):
         super(DBLangColumn, self).__init__(*args, **kwargs)
 
 
+class LanguageExpression(object):
+    def __init__(self, attr_name, attr_value):
+        self.attr_name = attr_name
+        self.attr_value = attr_value
+
+
 class LanguageColumn(object):
     def __init__(self, *args, **kwargs):
         self.orm_column = args[0]
         self.tsweight = kwargs.pop('tsweight', None)
+        self.name = kwargs.pop('name', None)
+
+    def __eq__(self, other):
+        return LanguageExpression(attr_name=self.name, attr_value=other)
 
 
 class SearchMapperCreator(object):
@@ -131,13 +143,22 @@ class LangMapperCreator(object):
         self.localmapper_class.__search_mapper__ = search_mapper
 
 
-class LangQueryManager(object):
+class LangQueryManager(Query):
     def __init__(self, model, *args, **kwargs):
         self.model = model
-        # Query.__init__(self, *args, **kwargs)
+        Query.__init__(self, *args, **kwargs)
 
     def filter(self, *criterion):
-        print(list(criterion))
+        criterion = list(criterion)
+        print(criterion)
+        result_query = self.model.base_query()
+        for expression in criterion:
+            if isinstance(expression, BinaryExpression):
+                result_query = result_query.filter(expression)
+            elif isinstance(expression, LanguageExpression):
+                kwarg = {expression.attr_name: expression.attr_value}
+                result_query = result_query.filter(self.model.lang_fields.any(**kwarg))
+        return result_query
 
     def filter_by(self, **kwargs):
         # print(self.model)
@@ -177,8 +198,8 @@ class MultiLanguage(object):
         return attr
 
     @classproperty
-    def query(cls, *args, **kwargs):
-        return LangQueryManager(cls, *args, **kwargs)
+    def query(cls, **kwargs):
+        return LangQueryManager(cls, entities=cls, **kwargs)
 
     @classmethod
     def base_query(cls):
