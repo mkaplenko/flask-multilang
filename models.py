@@ -117,6 +117,11 @@ class LangMapperCreator(object):
             )
         )  # Add ForignKey to base table column
 
+        # Add unique constraint to [self.local_mapper.local_table.name + '_id', lang]
+        columns.append(
+            sa.UniqueConstraint('lang', self.local_mapper.local_table.name + '_id', name='lang_' + self.local_mapper.local_table.name + '_id_unique_constraint')
+        )
+
         table = self.__construct_table(self.local_mapper.local_table.name+'_lang_fields', columns,
                                        self.local_mapper.local_table.schema)
 
